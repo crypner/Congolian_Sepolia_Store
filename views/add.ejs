@@ -1,0 +1,113 @@
+<%- include('header') -%>
+ 
+<h2><%= title %></h2>
+<br>
+<form id="postProduct" action="/add-product" method="post">
+    <div>
+        <img id="imgContainer" class='addProductImg' src='assets/img/defaultProduct.png' />
+    </div>
+    <button type="button" class="btn btn-primary" id="btn_AddImg" data-bs-toggle="modal" data-bs-target="#addImageModal">
+        <i class="fa-regular fa-image"></i> Add Image
+    </button>
+    <div class="mb-3 mt-3">
+        <input type="text" class="form-control" id="name" placeholder="Product Name" name="name" required>
+        <input type="text" class="hiddenInput" id="imageURL" name="imageURL">
+    </div>
+    <div class="mb-3 mt-3">
+        <textarea class="form-control" rows="5" id="description" name="description" placeholder="Product Description" required></textarea>
+    </div>    
+    <div class="mb-3 mt-3">
+        <input type="text" class="form-control" id="category" placeholder="Product Category" name="category" required>
+    </div>        
+    <div class="mb-3 mt-3" style="display: flex;align-items: center;">
+        <input type="number" class="form-control" id="Price" step=".0000000001" min="0" placeholder="Product Price in TWEI" name="price" required style="max-width: 250px;">
+        <span id="valInDLS" style="margin-left: 10px;color: #888;">($0.00)</span>
+    </div>
+    <button type="submit" class="btn btn-primary">Post Product</button>
+</form>
+
+
+<!-- The Modal -->
+<div class="modal" id="addImageModal">
+<div class="modal-dialog">
+  <div class="modal-content">
+        <button type="button" class="btn-close" id="addImageModalClose" data-bs-dismiss="modal"></button>
+      <div class="modal-body"style="text-align: center;padding: 25px;">
+          <h5>Upload Image</h5>
+        <form id="uploadForm" enctype="multipart/form-data">
+          <div class="mb-3 mt-3">
+              <input class="form-control" type="file" id="addImg_fileInput" name="image" accept="image/*" required>
+          </div>
+            <button type="submit" class="btn btn-primary">Upload</button>
+          </form>
+         </div>
+  </div>
+</div>
+</div>
+<div id="processing"><img src="../assets/img/processing.gif" style="filter: brightness(0.2);"/></div>
+<script>
+
+    // Get current Ethereum price in USD
+    var EthRate = 0;
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.onreadystatechange = function() { 
+        if (xmlHttp.readyState === 4 && xmlHttp.status === 200){
+            EthRate = JSON.parse(xmlHttp.response).USD;   
+        }                
+    }
+    xmlHttp.open("GET", "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD", true); // true for asynchronous 
+    xmlHttp.send(null);
+
+    // Update USD price according to input value on change
+    document.getElementById('Price').addEventListener("input", function(){      
+      document.getElementById('valInDLS').innerText = "($" + (EthRate * (parseFloat(this.value) / 1000000)).toFixed(2) + ")"
+    })
+
+    // Upload image to Infura and update image src with Infura URL
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData();
+      formData.append('image', document.querySelector('input[type="file"]').files[0]);
+      const response = await fetch('/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      document.getElementById('imgContainer').src = data.url;
+      document.getElementById('imageURL').value = data.url;
+      document.getElementById('btn_AddImg').innerHTML = "<i class='fa-regular fa-image'></i> Replace Image";
+      document.getElementById('addImg_fileInput').value = null;
+      document.getElementById('addImageModalClose').click();
+    });
+
+    // Get product form data and submit transaction to the blockchain
+    document.getElementById('postProduct').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        document.getElementById('processing').style.display = 'block';
+        
+        // Get the form data
+        const formData = new FormData(e.target);
+        const product = {
+            name: formData.get('name'),
+            imageURL: formData.get('imageURL'),
+            description: formData.get('description'),
+            category: formData.get('category'),
+            price: formData.get('price')
+        };
+
+        // Get the signer
+        const signer = await provider.getSigner();
+
+        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+        try {
+          var transaction = await contract.createProduct(product.name, product.imageURL, product.description, product.category, ethers.getBigInt(product.price));
+          console.log('Transaction sent:', transaction.hash);
+          await transaction.wait();
+          window.location.href = window.location.origin;
+        } catch (err) {
+          document.getElementById('processing').style.display = 'block';
+          alert("Transaction Failed!");
+        }
+    });
+  </script>
+<%- include('footer') -%>

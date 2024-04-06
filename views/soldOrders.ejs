@@ -1,0 +1,178 @@
+<%- include('header') -%>
+ 
+    <h1><%= title %></h1>
+    <br>
+    <div class="row">
+        <% if (transactions.length > 0){ %>
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Product Name</th>
+                      <th scope="col">Buyer Address</th>
+                      <th scope="col">Tracking Number</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <% transactions.forEach(function(transaction){ %>
+                    <tr>
+                        <td scope="row"><%= transaction.productId %></td>
+                        <% 
+                            var trnProdName = ''
+                            var trnProdPrice = ''
+                            products.forEach(function(product){
+                                if (product.position == transaction.productId){
+                                    var convertedValue = parseFloat(product.price.toString()) / 1000000;
+                                    trnProdName = product.name;
+                                    trnProdPrice = eToNumber(convertedValue);
+                                }
+                            }); 
+                        %>
+                        <td><%= trnProdName %></td>
+                        <td><%= transaction.buyerPhysicalAddress %></td>
+                        <td>
+                            <% if (transaction.trackingNumber != ''){ %>
+                                <%= transaction.trackingNumber %>
+                            <% }else{ %>
+                                <div class="btn btn-success" data-bs-toggle="modal" data-bs-target="#AddTrackingModal" data-bs-position="<%= transaction.position %>">Add Tracking</div>
+                            <% } %>
+                        </td>
+                        <td><%= transaction.status %></td>
+                        <td><i class="fab fa-ethereum"></i> <span class="prodPrice"><%= trnProdPrice %></span></td>
+                    </tr>
+                <% }); %>
+                    <tr class="totalRow">
+                        <td scope="col"></td>
+                        <td scope="col"></td>
+                        <td scope="col"></td>
+                        <td scope="col"></td>
+                        <td scope="col"><strong>Total Sales</strong></td>
+                        <td scope="col"><i class="fab fa-ethereum"></i> <span id="totalSales"></span></td>
+                     </tr>
+                </tbody>
+            </table>
+        <% }else{ %>
+            <p>No Transactions</p>
+        <% } %>
+    </div>
+
+    <div class="modal" id="AddTrackingModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+      
+                <!-- Modal Header -->
+                <div class="modal-header">
+                    <h4 class="modal-title">Add Tracking</h4>
+                    <button id="AddTrackingModal_Close" type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+      
+            <!-- Modal body -->
+                <div class="modal-body">
+                    <form id="transaction_frm">
+                        <div class="mb-3">
+                            <div style="display: none;">
+                                <input type="text" class="form-control" id="position" name="position">
+                            </div>
+                            
+                            <p style="margin-bottom: 5px;">Enter the tracking number for the shipped product below:</p>
+                            <input type="text" class="form-control" id="trackingNumber" placeholder="Tracking Number..." name="trackingNumber">
+                            <p id="badTracking" class="errorSUP">Tracking number seems to be invalid</p>
+                            <p class="notice"><strong>Note:</strong> Please make sure the tracking number is correct as once submitted it cannot be changed</p>
+                        </div>
+                        <button type="submit" class="btn btn-primary card-btn">Add Tracking</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="processing"><img src="../assets/img/processing.gif" style="filter: brightness(0.2);"/></div>
+    <script>
+        // Get current Ethereum price in USD and add USD equivalent to all prices
+        (async () => {
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.onreadystatechange = function() { 
+                if (xmlHttp.readyState === 4 && xmlHttp.status === 200){
+                    var EthRate = JSON.parse(xmlHttp.response).USD;   
+                    var prodPrices = document.querySelectorAll('.prodPrice');
+                    var totalSales = 0;
+                    prodPrices.forEach(function(element) {
+                        var currentText = parseFloat(element.textContent);   
+                        totalSales = totalSales + currentText;
+                        var updatedText = (EthRate * parseFloat(currentText)).toFixed(2);
+                        element.textContent = element.textContent + " ($" + updatedText + ")";
+                    });
+                    document.getElementById('totalSales').textContent = totalSales.toString() + " ($" + (EthRate * parseFloat(totalSales)).toFixed(2) + ")"
+                }                
+            }
+            xmlHttp.open("GET", "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD", true); // true for asynchronous 
+            xmlHttp.send(null);             
+        })();
+
+        // Open Add Tracking Modal and prepopulate transaction details
+        var AddTrackingModal = document.getElementById('AddTrackingModal')
+        AddTrackingModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget
+            document.getElementById('position').value = button.getAttribute('data-bs-position')
+        });
+
+        // Get transaction form data and submit transaction to update record on the blockchain
+        document.getElementById('transaction_frm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Get the form data
+            const formData = new FormData(e.target);
+            var tracking = formData.get('trackingNumber');
+
+            // Check Tracking Validity
+            var url = `/check-track?t=${tracking}`;
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.onload = async function () {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    if (xhr.responseText == 'OK'){
+
+                        // If tracking number is valid proceed with transaction
+                        //Get the signer
+                        const signer = await provider.getSigner();
+
+                        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+                        try {
+                            var transaction = await contract.updateTransactionTracking(formData.get('position'), formData.get('trackingNumber'));
+                            document.getElementById('AddTrackingModal_Close').click();  
+                            document.getElementById('processing').style.display = 'block';
+                            await transaction.wait();
+                            window.location.reload(true);
+                        } catch (err) {
+                            document.getElementById('trackingNumber').classList.add('InputError');
+                            document.getElementById('badTracking').style.display = 'block';
+                            document.getElementById('badTracking').innerText = 'Transaction Failed';
+                            setTimeout(() => {
+                                window.location.reload(true);
+                            }, 3000);
+                        }
+                    }else{
+                        document.getElementById('trackingNumber').classList.add('InputError');
+                        document.getElementById('badTracking').style.display = 'block';
+                        document.getElementById('badTracking').innerText = "Tracking number seems to be invalid"
+                    }
+                } else {
+                    console.error("Request failed with status:", xhr.status);
+                }
+            };
+
+            xhr.onerror = function () {
+                console.error("Request failed");
+            };
+            xhr.send();           
+        });
+
+        // On tracking change hide error notices
+        document.getElementById('trackingNumber').addEventListener('input', async (e) => {
+            document.getElementById('trackingNumber').classList.remove('InputError');
+            document.getElementById('badTracking').style.display = 'none';
+        });
+    </script>
+
+<%- include('footer') -%>

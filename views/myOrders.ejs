@@ -1,0 +1,71 @@
+<%- include('header') -%>
+
+    <h1><%= title %></h1>
+    <br>
+    <div class="row">
+        <% if (transactions.length > 0){ %>
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Product Name</th>
+                      <th scope="col">Price</th>
+                      <th scope="col">Tracking Number</th>
+                      <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <% transactions.forEach(function(transaction){ %>
+                    <tr>
+                        <td scope="row"><%= transaction.productId %></td>
+                        <% 
+                            var trnProdName = ''
+                            var trnProdPrice = ''
+                            products.forEach(function(product){
+                                if (product.position == transaction.productId){
+                                    var convertedValue = parseFloat(product.price.toString()) / 1000000;
+                                    trnProdName = product.name;                                    
+                                    trnProdPrice = eToNumber(convertedValue);
+                                }
+                            }); 
+                        %>
+                        <td><%= trnProdName %></td>
+                        <td><i class="fab fa-ethereum"></i> <span class="prodPrice"><%= trnProdPrice %></span></td>
+                        <td>
+                            <% if (transaction.trackingNumber != ''){ %>
+                                <%= transaction.trackingNumber %>
+                            <% }else{ %>
+                                <i style="color: #aaa;">Tracking not available</i>
+                            <% } %>
+                        </td>
+                        <td><%= transaction.status %></td>
+                    </tr>
+                <% }); %>
+                </tbody>
+            </table>
+        <% }else{ %>
+            <p>You have not yet placed any orders</p>
+        <% } %>
+    </div>
+
+    <script>
+        // Get current Ethereum price in USD and add USD equivalent to all prices
+        (async () => {
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.onreadystatechange = function() { 
+                if (xmlHttp.readyState === 4 && xmlHttp.status === 200){
+                    var EthRate = JSON.parse(xmlHttp.response).USD;   
+                    var prodPrices = document.querySelectorAll('.prodPrice');
+                    prodPrices.forEach(function(element) {
+                        var currentText = parseFloat(element.textContent);        
+                        var updatedText = (EthRate * parseFloat(currentText)).toFixed(2);
+                        element.textContent = element.textContent + " ($" + updatedText + ")";
+                    });
+                }                
+            }
+            xmlHttp.open("GET", "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD", true); // true for asynchronous 
+            xmlHttp.send(null);             
+        })();
+    </script>
+
+<%- include('footer') -%>

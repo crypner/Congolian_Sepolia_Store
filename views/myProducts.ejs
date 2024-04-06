@@ -1,0 +1,62 @@
+<%- include('header') -%>
+
+<h2><%= title %></h2>
+<br>
+<div class="row">
+    <% if (products.length > 0){ %>
+        <% products.forEach(function(product){ %>
+            <div class="col-12 col-xl-3 col-lg-4 col-md-6 col-sm-6">
+                <div class="card">
+                    <div class="card-img-bg" title="<%= product.name %>" style="background-image: url('<%= product.imageIPFSHash ? product.imageIPFSHash : `assets/img/defaultProduct.png` %>');"></div>
+                    <div class="card-body">
+                        <h6 class="card-category"><%= product.category %></h6>
+                        <h5 class="card-title"><%= product.name %></h5>
+                        <p class="card-description" title="<%= product.description %>"><%= product.description %></p>
+                        <% 
+                            var convertedValue = parseFloat(product.price.toString()) / 1000000;
+                            var convertedValueX = eToNumber(convertedValue);
+                        %>
+                        <p class="card-text"><i class="fab fa-ethereum"></i> <span class="prodPrice"><%= convertedValueX %></span></p>
+                        <!-- If Product is not sold show "Edit" button -->
+                        <% if(!product.sold){ %>
+                            <button type="button" class="btn btn-primary card-btn" onclick="window.location.href = window.location.origin + '/edit-product?product=<%= product.position %>'">
+                                Edit
+                            </button>
+                        <% }else{ %>
+                            <div class="sold_btn card-btn">
+                                SOLD
+                            </div>
+                        <% } %>
+                        
+                    </div>
+                </div>
+            </div>
+        <% }); %>
+    <% }else{ %>
+        <p>No Products</p>
+    <% } %>
+</div>
+<script>
+    // Get current Ethereum price in USD and add USD equivalent to all prices
+    (async () => {
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.onreadystatechange = function() { 
+            if (xmlHttp.readyState === 4 && xmlHttp.status === 200){
+                var EthRate = JSON.parse(xmlHttp.response).USD;   
+                var prodPrices = document.querySelectorAll('.prodPrice');
+                prodPrices.forEach(function(element) {
+                    console.log(EthRate)
+                    var currentText = parseFloat(element.textContent);        
+                    var updatedText = (EthRate * parseFloat(currentText)).toFixed(2);
+                    element.textContent = element.textContent + "($" + updatedText + ")";
+                });
+            }                
+        }
+        xmlHttp.open("GET", "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD", true); // true for asynchronous 
+        xmlHttp.send(null);             
+    })();
+    
+    
+</script>
+
+<%- include('footer') -%>

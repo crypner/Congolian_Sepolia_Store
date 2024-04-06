@@ -1,0 +1,124 @@
+<%- include('header') -%>
+
+<p style="text-align: right;"><%= productsCount %> Procducts</p>
+<div class="row">
+    <% products.forEach(function(product){ %>
+        <% if(!product.sold){ %>
+            <div class="col-12 col-xl-3 col-lg-4 col-md-6 col-sm-6">
+                <div class="card">
+                    <div class="card-img-bg" title="<%= product.name %>" style="background-image: url('<%= product.imageIPFSHash ? product.imageIPFSHash : `assets/img/defaultProduct.png` %>');"></div>
+                    <div class="card-body">
+                        <h6 class="card-category"><%= product.category %></h6>
+                        <h5 class="card-title"><%= product.name %></h5>
+                        <p class="card-description" title="<%= product.description %>"><%= product.description %></p>
+                        <% 
+                            // Convert the value to BigInt and divide by 1000
+                            var convertedValue = parseFloat(product.price.toString()) / 1000000;
+                            var convertedValueX = eToNumber(convertedValue);
+                        %>
+                        <p class="card-text"><i class="fab fa-ethereum"></i> <span class="prodPrice"><%= convertedValueX %></span></p>
+                        <button class="btn btn-primary card-btn" data-bs-toggle="modal" data-bs-target="#buyModal"
+                            data-bs-position="<%= product.position %>" data-bs-price="<%= product.price %>"
+                            data-bs-seller="<%= product.seller %>">Buy</button>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+    <% }); %>
+</div>
+
+<div class="modal" id="buyModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <!-- Modal Header -->
+            <div class="modal-header">
+                <h4 class="modal-title">Buy Product</h4>
+                <button id="buyModal_Close" type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <!-- Modal body -->
+            <div class="modal-body">
+                <form id="transaction_frm">
+                    <div class="mb-3">
+                        <div style="display: none;">
+                            <input type="text" class="form-control" id="position" name="position">
+                            <input type="text" class="form-control" id="price" name="price">
+                            <input type="text" class="form-control" id="seller" name="seller">
+                        </div>
+
+                        <p style="margin-bottom: 5px;">To where would you like your product shipped?</p>
+                        <label for="comment"><strong>Address:</strong></label>
+                        <textarea class="form-control" rows="5" id="comment" name="buyerPhysicalAddress"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary card-btn">Buy</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="processing"><img src="../assets/img/processing.gif" style="filter: brightness(0.2);" /></div>
+<script>
+    // Open buy modal and prepopulate with product data
+    var buyModal = document.getElementById('buyModal')
+    buyModal.addEventListener('show.bs.modal', function (event) {
+        var button = event.relatedTarget
+        document.getElementById('position').value = button.getAttribute('data-bs-position')
+        document.getElementById('price').value = button.getAttribute('data-bs-price')
+        document.getElementById('seller').value = button.getAttribute('data-bs-seller')
+    });
+
+    // Process Transaction
+    document.getElementById('transaction_frm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        // Get the form data
+        const formData = new FormData(e.target);
+        const obj_Transaction = {
+            position: formData.get('position'),
+            price: formData.get('price'),
+            seller: formData.get('seller'),
+            buyerPhysicalAddress: formData.get('buyerPhysicalAddress')
+        };
+
+        // Get the signer
+        const signer = await provider.getSigner();
+
+        var priceInEth = obj_Transaction.price / 1000000;
+        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+        try {
+            var transaction = await contract.createTransaction(
+                    obj_Transaction.position, ethers.getBigInt(obj_Transaction.price), 
+                    obj_Transaction.seller, 
+                    obj_Transaction.buyerPhysicalAddress, 
+                    {value: ethers.parseEther(priceInEth.toString())}
+                );
+            document.getElementById('buyModal_Close').click();
+            document.getElementById('processing').style.display = 'block';
+            await transaction.wait();
+            window.location.reload(true);
+        } catch (err) {
+            document.getElementById('processing').style.display = 'block';
+            alert("Transaction Failed!");
+        }
+    });
+
+    // Get current Ethereum price in USD and add USD equivalent to all prices
+    (async () => {
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.onreadystatechange = function () {
+            if (xmlHttp.readyState === 4 && xmlHttp.status === 200) {
+                var EthRate = JSON.parse(xmlHttp.response).USD;
+                var prodPrices = document.querySelectorAll('.prodPrice');
+                prodPrices.forEach(function (element) {
+                    var currentText = parseFloat(element.textContent);
+                    var updatedText = (EthRate * parseFloat(currentText)).toFixed(2);
+                    element.textContent = element.textContent + "($" + updatedText + ")";
+                });
+            }
+        }
+        xmlHttp.open("GET", "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD", true);
+        xmlHttp.send(null);
+    })();
+</script>
+<%- include('footer') -%>
