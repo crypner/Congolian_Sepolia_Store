@@ -53,6 +53,7 @@ Make sure you have Sepolia Network on your metamask.
     - **Currency symbol** : SepoliaETH
     - **Block explorer URL** : https://sepolia.etherscan.io
 - Click on "**Add Network**"
+
 **------------------------------------------------------------------------**
 
 Once the account is created you would need to get some Sepolia ETH. You can get Sepolia from this **[Faucet](sepolia-faucet.pk910.de/#/)**. Copy the address of your new account, paste it in the faucet and hit **Start Mining**. in a short while you will have a few SepoliaETH which should be more then enough for testing purposes.
