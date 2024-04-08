@@ -80,7 +80,9 @@ Once you click **Deploy**, Metamask should open so that you can confirm the tran
 
 When the transaction gets validated you should be able to see your contract under "**Deployed/unpinned Contracts**" in the **Deploy** tab in Remix.
 
-Now that we have our contract deployed copy the contract address and lets head back to our `.env` file.
+Now that we have our contract deployed copy the contract address and lets head back to our project files in VS Code or the IDE of your choice.
+
+We need to paste our contract address in the abi.js file. Go to **public** > **assets** > **js** > **abi.js**. Update the value of the constant **contractAddress** by pasting your new contract address. Save and lets move on to the  `.env` file.
 
 ### Update `.env` file
 
